@@ -2,14 +2,17 @@ package main
 
 import (
 	"encoding/gob"
-	// "encoding/json"
+	"encoding/json"
 	"fmt"
 	"github.com/drone/routes"
-	// "io/ioutil"
+	"io/ioutil"
 	"net/http"
 	"os"
 	//	"log"
-	"strings"
+	"github.com/bitly/go-simplejson"
+	"github.com/davecgh/go-spew/spew"
+	"math/rand"
+	"strconv"
 )
 
 type DeviceSwitch struct {
@@ -22,38 +25,51 @@ type DeviceSwitch struct {
 func getLight(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	light_id := params.Get(":light")
+	desired_state := params.Get(":state")
 	fmt.Fprint(w, "requesting switch ", light_id, "\n")
-	var switches []DeviceSwitch
+	var switches map[string]DeviceSwitch
+	switches = make(map[string]DeviceSwitch)
 	Load("test_switches", &switches)
-	for _, device := range switches {
-		if device.Id == light_id {
-			fmt.Fprint(w, device, "\n")
-		}
+	device := switches[light_id]
+	json.NewEncoder(w).Encode(device)
+	fmt.Println(device)
+	url := "http://10.0.1.61/port_3480/data_request?id=lu_action&output_format=json&serviceId=urn:upnp-org:serviceId:SwitchPower1&action=SetTarget&rand=0.123&DeviceNum=3&newTargetValue=" + desired_state
+	resp, err := http.Get(url)
+	if err != nil {
+		return
 	}
+
+	defer resp.Body.Close()
+
 }
 
 func printLights(w http.ResponseWriter, r *http.Request) {
-	var switches []DeviceSwitch
-	fmt.Fprintf(w, "Loading switches\n")
+	var switches map[string]DeviceSwitch
+	switches = make(map[string]DeviceSwitch)
 	Load("test_switches", &switches)
+	fmt.Println(switches)
 
-	for _, device := range switches {
-		// b, _ := json.Marshal(device)
-		fmt.Fprint(w, device, "\n")
-	}
+	json.NewEncoder(w).Encode(switches)
 }
 
 func printTest(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()       // parse arguments, you have to call this by yourself
-	fmt.Println(r.Form) // print form information in server side
-	fmt.Println("path", r.URL.Path)
-	fmt.Println("scheme", r.URL.Scheme)
-	fmt.Println(r.Form["url_long"])
-	for k, v := range r.Form {
-		fmt.Println("key:", k)
-		fmt.Println("val:", strings.Join(v, ""))
+	r.ParseForm() // parse arguments, you have to call this by yourself
+	random := strconv.FormatFloat(rand.Float64(), 'f', 2, 32)
+	url := "http://10.0.1.61/port_3480/data_request?id=user_data&rand=" + string(random)
+	resp, err := http.Get(url)
+	if err != nil {
+		return
 	}
-	fmt.Fprintf(w, "HEllo world!")
+
+	defer resp.Body.Close()
+	raw_body, err := ioutil.ReadAll(resp.Body)
+	body := []byte(string(raw_body))
+	var parsed_body interface{}
+	err = json.Unmarshal(body, &parsed_body)
+	// pretty_body, err := json.MarshalIndent(parsed_body, "", "  ")
+	// fmt.Println(parsed_body)
+	// spew.Dump(parsed_body)
+	w.Write(body)
 }
 
 // Encode via Gob to file
@@ -81,14 +97,45 @@ func Load(path string, object interface{}) error {
 	return err
 }
 
+func LoadDevices() {
+	random := strconv.FormatFloat(rand.Float64(), 'f', 2, 32)
+	url := "http://10.0.1.61/port_3480/data_request?id=user_data&rand=" + string(random)
+	resp, err := http.Get(url)
+	if err != nil {
+		return
+	}
+
+	defer resp.Body.Close()
+	raw_body, err := ioutil.ReadAll(resp.Body)
+	body := []byte(string(raw_body))
+
+	devices := make(map[string]DeviceSwitch)
+	fmt.Println(devices)
+	parsed_body, err := simplejson.NewJson(body)
+	// fmt.Println(parsed_body.Get("devices"))
+	parsed_keys := parsed_body.Get("devices").MustArray()
+	for k, v := range parsed_keys {
+		var deviceSwitch DeviceSwitch
+		deviceSwitch.Id = strconv.Itoa(k)
+		for k1, _ := range v.(map[string]interface{}) {
+			fmt.Println("\t", k1)
+		}
+		devices[strconv.Itoa(k)] = deviceSwitch
+	}
+	fmt.Println(devices)
+	spew.Sdump(parsed_body.Get("devices"))
+}
+
 func main() {
-	var switches []DeviceSwitch
-	switches = append(switches, DeviceSwitch{"1", "test1", "room", 0})
-	switches = append(switches, DeviceSwitch{"2", "test2", "room2", 1})
+	var switches map[string]DeviceSwitch
+	switches = make(map[string]DeviceSwitch)
+	switches["1"] = DeviceSwitch{"1", "test1", "room", 0}
+	switches["2"] = DeviceSwitch{"2", "test2", "room2", 1}
+	LoadDevices()
 	Save("test_switches", switches)
 	mux := routes.New()
 	mux.Get("/lights", printLights)
-	mux.Get("/lights/:light", getLight)
+	mux.Get("/lights/:light/:state", getLight)
 	mux.Get("/", printTest)
 	http.Handle("/", mux)
 	http.ListenAndServe(":8088", nil)
