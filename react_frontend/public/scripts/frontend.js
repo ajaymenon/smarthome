@@ -8,7 +8,7 @@ var Device = React.createClass({
     return (
       <div className="device">
         <h2 className="deviceId">
-          {this.props.id}
+          {this.props.name}
         </h2>
         <span dangerouslySetInnerHTML={this.rawMarkup()} />
       </div>
@@ -70,16 +70,14 @@ var DeviceBox = React.createClass({
 
 var DeviceList = React.createClass({
   render: function() {
-    var devices = [];
-    for (var key in this.props.data) {
-      var device = this.props.data[key];
-      devices.push(
-        <Device room={device.Room} key={device.Id}>
-            {device.Room}
-            {device.Status}
+    var devices = this.props.data.map(function(device) {
+      return(
+        <Device room={device["device_file"]} key={device["id"]} id={device["id"]} name={device["name"]}>
+            {device["id"]}
+            {device["name"]}
         </Device>
       );
-    }
+    });
     return (
       <div className="deviceList">
         {devices}

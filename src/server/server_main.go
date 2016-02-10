@@ -1,16 +1,14 @@
 package main
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"github.com/drone/routes"
 	"io/ioutil"
 	"net/http"
-	"os"
 	//	"log"
 	"github.com/bitly/go-simplejson"
-	"github.com/davecgh/go-spew/spew"
+	// "github.com/davecgh/go-spew/spew"
 	"math/rand"
 	"strconv"
 )
@@ -19,7 +17,7 @@ type DeviceSwitch struct {
 	Id     string
 	Name   string
 	Room   string
-	Status int
+	Status string
 }
 
 func getLight(w http.ResponseWriter, r *http.Request) {
@@ -27,9 +25,7 @@ func getLight(w http.ResponseWriter, r *http.Request) {
 	light_id := params.Get(":light")
 	desired_state := params.Get(":state")
 	fmt.Fprint(w, "requesting switch ", light_id, "\n")
-	var switches map[string]DeviceSwitch
-	switches = make(map[string]DeviceSwitch)
-	Load("test_switches", &switches)
+	switches := LoadDevices()
 	device := switches[light_id]
 	json.NewEncoder(w).Encode(device)
 	fmt.Println(device)
@@ -44,9 +40,7 @@ func getLight(w http.ResponseWriter, r *http.Request) {
 }
 
 func printLights(w http.ResponseWriter, r *http.Request) {
-	var switches map[string]DeviceSwitch
-	switches = make(map[string]DeviceSwitch)
-	Load("test_switches", &switches)
+	switches := LoadDevices()
 	fmt.Println(switches)
 
 	json.NewEncoder(w).Encode(switches)
@@ -72,67 +66,78 @@ func printTest(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// Encode via Gob to file
-func Save(path string, object interface{}) error {
-	file, err := os.Create(path)
-	if err == nil {
-		encoder := gob.NewEncoder(file)
-		encoder.Encode(object)
-	}
-	file.Close()
-	return err
-}
-
-// Decode Gob file
-func Load(path string, object interface{}) error {
-	file, err := os.Open(path)
-	if err == nil {
-		decoder := gob.NewDecoder(file)
-		err = decoder.Decode(object)
-	} else {
-		fmt.Println(err)
-	}
-
-	file.Close()
-	return err
-}
-
-func LoadDevices() {
+func LoadDevices() map[string]DeviceSwitch {
 	random := strconv.FormatFloat(rand.Float64(), 'f', 2, 32)
 	url := "http://10.0.1.61/port_3480/data_request?id=user_data&rand=" + string(random)
 	resp, err := http.Get(url)
+	devices := make(map[string]DeviceSwitch)
 	if err != nil {
-		return
+		return devices
 	}
 
 	defer resp.Body.Close()
 	raw_body, err := ioutil.ReadAll(resp.Body)
 	body := []byte(string(raw_body))
 
-	devices := make(map[string]DeviceSwitch)
-	fmt.Println(devices)
 	parsed_body, err := simplejson.NewJson(body)
 	// fmt.Println(parsed_body.Get("devices"))
 	parsed_keys := parsed_body.Get("devices").MustArray()
-	for k, v := range parsed_keys {
+	for _, v := range parsed_keys {
 		var deviceSwitch DeviceSwitch
-		deviceSwitch.Id = strconv.Itoa(k)
-		for k1, _ := range v.(map[string]interface{}) {
-			fmt.Println("\t", k1)
+		for property, value := range v.(map[string]interface{}) {
+			// fmt.Println("\t", property)
+			switch value_key := value.(type) {
+			case string:
+				if property == "name" {
+					deviceSwitch.Name = value_key
+				} else if property == "room" {
+					deviceSwitch.Room = value_key
+				}
+				// 	fmt.Println("\t\t", value_key)
+				break
+			case json.Number:
+				if property == "id" {
+					deviceSwitch.Id = string(value_key)
+				}
+				break
+			case map[string]interface{}:
+				/*
+					for sub_property, sub_value := range value_key {
+						fmt.Println("\t\t\t", sub_property)
+						for sub_valuekey, sub_valuevalue := range sub_value.(map[string]interface{}) {
+							fmt.Println("\t\t\t\t", sub_valuekey, "\t", sub_valuevalue)
+						}
+					}
+				*/
+				break
+			case []interface{}:
+				/*
+					for _, sub_value := range value_key {
+						switch sub_value_type := sub_value.(type) {
+						default:
+							fmt.Printf("%T", sub_value_type)
+						}
+					}
+				*/
+			default:
+				/*
+					fmt.Printf("%T", value)
+					fmt.Println("\t\t", value, " - ")
+				*/
+			}
 		}
-		devices[strconv.Itoa(k)] = deviceSwitch
+		if deviceSwitch.Id == "3" {
+			deviceSwitch.Status = parsed_body.Get("devices").GetIndex(2).Get("states").GetIndex(19).Get("value").MustString("-1")
+
+		} else {
+			deviceSwitch.Status = "-1"
+		}
+		devices[deviceSwitch.Id] = deviceSwitch
 	}
-	fmt.Println(devices)
-	spew.Sdump(parsed_body.Get("devices"))
+	return devices
 }
 
 func main() {
-	var switches map[string]DeviceSwitch
-	switches = make(map[string]DeviceSwitch)
-	switches["1"] = DeviceSwitch{"1", "test1", "room", 0}
-	switches["2"] = DeviceSwitch{"2", "test2", "room2", 1}
-	LoadDevices()
-	Save("test_switches", switches)
 	mux := routes.New()
 	mux.Get("/lights", printLights)
 	mux.Get("/lights/:light/:state", getLight)

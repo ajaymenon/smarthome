@@ -36,16 +36,20 @@ app.use(function(req, res, next) {
 
 app.get('/api/devices', function(req, res) {
   var options = {
-    host: "localhost",
-    port: 8088,
-    path: "/lights",
+    host: "10.0.1.61",
+    port: 80,
+    path: "/port_3480/data_request?id=user_data&rand=0.123",
     method: 'GET'
   };
 
   http.get(options, function(res1) {
     res1.setEncoding('utf8');
+    var data = '';
     res1.on('data', function (chunk) {
-      res.json(JSON.parse(chunk))
+      data += chunk;
+    });
+    res1.on('end', function() {
+      res.send(JSON.parse(data)["devices"])
     });
   }).end();
 });
