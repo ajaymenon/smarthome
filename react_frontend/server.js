@@ -34,6 +34,27 @@ app.use(function(req, res, next) {
     next();
 });
 
+app.get('/api/devices/toggle', function(req, res) {
+  var options = {
+    host: "10.0.1.61",
+    port: 80,
+    path: "/port_3480/data_request?id=lu_action&output_format=json&serviceId=urn:upnp-org:serviceId:SwitchPower1&action=SetTarget&DeviceNum=" + req["query"]["id"] + "&rand=0.123&newTargetValue="+req["query"]["new_state"],
+    method: 'GET'
+  };
+
+  http.get(options, function(res1) {
+    res1.setEncoding('utf8');
+    var data = '';
+    res1.on('data', function (chunk) {
+      data += chunk;
+    });
+    res1.on('end', function() {
+      res.send(data)
+      // console.log(JSON.parse(data))
+    });
+  }).end();
+});
+
 app.get('/api/devices', function(req, res) {
   var options = {
     host: "10.0.1.61",
@@ -49,7 +70,11 @@ app.get('/api/devices', function(req, res) {
       data += chunk;
     });
     res1.on('end', function() {
-      res.send(JSON.parse(data)["devices"])
+      res.send(
+        {
+          'devices': JSON.parse(data)["devices"],
+          'rooms': JSON.parse(data)["rooms"],
+        })
     });
   }).end();
 });

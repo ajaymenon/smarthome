@@ -1,8 +1,7 @@
-var Device = React.createClass({
+var DeviceButton = React.createClass({
   getInitialState: function() {
     return {status: this.props.status}
   },
-
   handleClick: function(event) {
     var newState = "-1";
     if (this.state.status == "0") {
@@ -13,36 +12,43 @@ var Device = React.createClass({
       return;
     }
     this.setState({status: newState});
+    console.log(newState)
   },
 
   componentDidUpdate: function() {
     $.ajax({
-      url: "/api/devices/toggle",//this.props.url,
+      url: this.props.url,
       dataType: 'json',
       type: 'GET',
-      data: {"name" : this.props.name, "new_state" : this.state.status, "id" : this.props.id },
+      data: {"name" : this.props.name, "new_state" : this.state.status },
       success: function(data) {
       }.bind(this),
       error: function(xkh, status, err) {
-        console.error("/api/devices/toggle", status, err.toString());
+        console.error(this.props.url, status, err.toString());
       }.bind(this)
     });
   },
 
-
   render: function() {
-    var status_button = <p></p>;
     if (this.state.status != "-1") {
-      var divStyle = {
-        borderStyle: 'solid',
-      };
-      status_button =(
-        <p style={divStyle} onClick={this.handleClick}>
+      return (
+        <p onClick={this.handleClick}>
           {this.state.status == "0" ? "off" : "on"}
         </p>
       );
     }
+    return <p></p>;
+  }
+});
 
+var Device = React.createClass({
+  rawMarkup: function() {
+    var rawMarkup = marked(this.props.children.toString(), {sanitize: true});
+    return { __html: rawMarkup };
+  },
+
+  render: function() {
+    var status_button = <DeviceButton status={this.props.status} id={this.props.id} name={this.props.name} url={"/api/devices/toggle"}/>
     return (
       <div className="device">
         <h2 className="deviceId">
@@ -52,6 +58,7 @@ var Device = React.createClass({
         <br/>
         room: {this.props.room}
         <br/>
+        status: {this.props.status}
         {status_button}
       </div>
     );
@@ -65,7 +72,7 @@ var DeviceBox = React.createClass({
       dataType: 'json',
       cache: false,
       success: function(data) {
-        this.setState({devices: data["devices"], rooms: data["rooms"]});
+        this.setState({data: data});
       }.bind(this),
       error: function(xhr, status, err) {
         console.error(this.props.url, status, err.toString());
@@ -73,7 +80,7 @@ var DeviceBox = React.createClass({
     });
   },
   getInitialState: function() {
-    return {devices: []};
+    return {data: []};
   },
   componentDidMount: function() {
     this.loadDevicesFromServer();
@@ -82,7 +89,7 @@ var DeviceBox = React.createClass({
     return (
       <div className="deviceBox">
         <h1>Devices</h1>
-        <DeviceList devices={this.state.devices} rooms={this.state.rooms}/>
+        <DeviceList data={this.state.data} />
       </div>
     );
   }
@@ -90,34 +97,24 @@ var DeviceBox = React.createClass({
 
 var DeviceList = React.createClass({
   render: function() {
-    var devices = [];
-    for (var deviceKey in this.props.devices) {
-      var device = this.props.devices[deviceKey];
+    var devices = this.props.data.map(function(device) {
       var state = "-1";
       for (var i = 0; i < device["states"].length; i++) {
         if (device["states"][i]["variable"] == "Status") {
           state = device["states"][i]["value"];
         }
       }
-    var roomName = "";
-    for (var roomId in this.props.rooms) {
-      var room = this.props.rooms[roomId];
-      if (device["room"] == room.id) {
-          roomName = room.name;
-        }
-      }
-
-    devices.push(
-      <Device 
-        room={roomName}
-        key={device["id"]} 
-        id={device["id"]} 
-        name={device["name"]} 
-        status={state}
-      >
-      </Device>
-     );
-    }
+      return(
+        <Device 
+          room={device["room"]} 
+          key={device["id"]} 
+          id={device["id"]} 
+          name={device["name"]} 
+          status={state}
+        >
+        </Device>
+      );
+    });
     return (
       <div className="deviceList">
         {devices}
