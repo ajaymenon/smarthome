@@ -43,18 +43,27 @@ var Device = React.createClass({
       );
     }
 
-    return (
-      <div className="device">
-        <h2 className="deviceId">
-          {this.props.name}
-        </h2>
-        id: {this.props.id} 
-        <br/>
-        room: {this.props.room}
-        <br/>
-        {status_button}
-      </div>
-    );
+    if (this.state.status != "-1") {
+      return (
+        <div className="device">
+          <h2 className="deviceId">
+            {this.props.name}
+          </h2>
+          id: {this.props.id} 
+          <br/>
+          room: {this.props.room}
+          <br />
+          energy usage (watts): {this.props.energy_usage_watts}
+          <br/>
+          {status_button}
+        </div>
+      );
+    } else {
+      return (
+        <div className="device">
+        </div>
+      );
+    }
   }
 });
 
@@ -94,9 +103,13 @@ var DeviceList = React.createClass({
     for (var deviceKey in this.props.devices) {
       var device = this.props.devices[deviceKey];
       var state = "-1";
+      var energy_usage_watts = 0.0;
       for (var i = 0; i < device["states"].length; i++) {
         if (device["states"][i]["variable"] == "Status") {
           state = device["states"][i]["value"];
+        }
+        if (device["states"][i]["variable"] == "Watts") {
+          energy_usage_watts = device["states"][i]["value"];
         }
       }
     var roomName = "";
@@ -113,6 +126,7 @@ var DeviceList = React.createClass({
         key={device["id"]} 
         id={device["id"]} 
         name={device["name"]} 
+        energy_usage_watts={energy_usage_watts}
         status={state}
       >
       </Device>
