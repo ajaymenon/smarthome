@@ -36,10 +36,10 @@ var Device = React.createClass({
       var divStyle = {
         borderStyle: 'solid',
       };
-      status_button =(
-        <p style={divStyle} onClick={this.handleClick}>
+      status_button = (
+        <button style={divStyle} onClick={this.handleClick}>
           {this.state.status == "0" ? "off" : "on"}
-        </p>
+        </button>
       );
     }
 
@@ -47,13 +47,11 @@ var Device = React.createClass({
       return (
         <div className="device">
           <h2 className="deviceId">
-            {this.props.name}
+            Device {this.props.id} - {this.props.name}
           </h2>
-          id: {this.props.id} 
-          <br/>
-          room: {this.props.room}
+          Location: {this.props.room}
           <br />
-          energy usage (watts): {this.props.energy_usage_watts}
+          Active Energy Usage: {this.props.energy_usage_watts} Watts
           <br/>
           {status_button}
         </div>
@@ -90,12 +88,43 @@ var DeviceBox = React.createClass({
   render: function() {
     return (
       <div className="deviceBox">
-        <h1>Devices</h1>
+        <h1>Individual Devices - WIP</h1>
         <DeviceList devices={this.state.devices} rooms={this.state.rooms}/>
       </div>
     );
   }
 });
+
+var ControllerBox = React.createClass({
+  loadDevicesFromServer: function() {
+    $.ajax({
+      url: this.props.url,
+      dataType: 'json',
+      cache: false,
+      success: function(data) {
+        this.setState({devices: data["devices"], rooms: data["rooms"]});
+      }.bind(this),
+      error: function(xhr, status, err) {
+        console.error(this.props.url, status, err.toString());
+      }.bind(this)
+    });
+  },
+  getInitialState: function() {
+    return {devices: []};
+  },
+  componentDidMount: function() {
+    this.loadDevicesFromServer();
+  },
+  render: function() {
+    return (
+      <div className="deviceBox">
+        <h1>Home Controller Commands - WIP</h1>
+        <button> Turn all lights off - WIP </button>
+      </div>
+    );
+  }
+});
+
 
 var DeviceList = React.createClass({
   render: function() {
@@ -140,8 +169,11 @@ var DeviceList = React.createClass({
   }
 });
 
-
 ReactDOM.render(
   <DeviceBox url="/api/devices" />,
-  document.getElementById('content')
+  document.getElementById('devices')
+);
+ReactDOM.render(
+  <ControllerBox url="/api/devices" />,
+  document.getElementById('controls')
 );
